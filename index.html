@@ -49,11 +49,30 @@ const errorDiv=document.getElementById("error");
 const successDiv=document.getElementById("success");
 const submitBtn=document.getElementById("submitBtn");
 const WEBHOOK_URL="https://discord.com/api/webhooks/1454213308264747280/Ff-b_KqrHxDq6lbDeeed_wMsWUPVka_9uFjksHzEHjG2viJVJYvhiF8rsGDHdBd896My";
+const COOLDOWN_KEY="botSubmissionCooldown";
+const COOLDOWN_MS=60*60*1000;
 function login(){window.location.href=`https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`}
 function logout(){localStorage.removeItem("discordToken");window.location.reload()}
 async function getUser(){let token=localStorage.getItem("discordToken");if(!token){const hash=new URLSearchParams(window.location.hash.replace("#","?"));token=hash.get("access_token");if(token){localStorage.setItem("discordToken",token);window.location.hash=""}else{return login()}}try{const res=await fetch("https://discord.com/api/users/@me",{headers:{"Authorization":`Bearer ${token}`}});const user=await res.json();document.getElementById("userName").textContent=user.username;document.getElementById("userAvatar").src=`https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`;document.getElementById("userInfo").style.display="flex";submitBtn.classList.add("active")}catch(err){localStorage.removeItem("discordToken");login()}}
 getUser();
-form.addEventListener("submit",async function(e){e.preventDefault();errorDiv.textContent="";successDiv.textContent="";const name=document.getElementById("botName").value.trim();const description=document.getElementById("botDescription").value.trim();const features=document.getElementById("botFeatures").value.trim();const tags=document.getElementById("botTags").value.split(",").map(t=>t.trim()).filter(t=>t);if(tags.length>5){errorDiv.textContent="You can only add up to 5 tags.";return}const userName=document.getElementById("userName").textContent;const userAvatar=document.getElementById("userAvatar").src;const payload={embeds:[{title:name,description:description,fields:[{name:"Features",value:features},{name:"Tags",value:tags.join(", ")}],color:7506394,footer:{text:userName,icon_url:userAvatar}}]};try{await fetch(WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});successDiv.textContent="Submission sent successfully!"}catch(err){errorDiv.textContent="Failed to send submission. Try again later.";console.error(err)}})
+form.addEventListener("submit",async function(e){
+e.preventDefault();errorDiv.textContent="";successDiv.textContent="";
+const last=localStorage.getItem(COOLDOWN_KEY);
+if(last && Date.now()-parseInt(last)<COOLDOWN_MS){const remaining=Math.ceil((COOLDOWN_MS-(Date.now()-parseInt(last)))/60000);errorDiv.textContent=`Please wait ${remaining} more minutes before submitting again.`;return}
+const name=document.getElementById("botName").value.trim();
+const description=document.getElementById("botDescription").value.trim();
+const features=document.getElementById("botFeatures").value.trim();
+const tags=document.getElementById("botTags").value.split(",").map(t=>t.trim()).filter(t=>t);
+if(tags.length>5){errorDiv.textContent="You can only add up to 5 tags.";return}
+const userName=document.getElementById("userName").textContent;
+const userAvatar=document.getElementById("userAvatar").src;
+const payload={embeds:[{title:name,description:description,fields:[{name:"Features",value:features},{name:"Tags",value:tags.join(", ")}],color:7506394,footer:{text:userName,icon_url:userAvatar}}]};
+try{
+await fetch(WEBHOOK_URL,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+localStorage.setItem(COOLDOWN_KEY,Date.now().toString());
+successDiv.textContent="Submission sent successfully!"
+}catch(err){errorDiv.textContent="Failed to send submission. Try again later.";console.error(err)}
+})
 </script>
 </body>
 </html>
