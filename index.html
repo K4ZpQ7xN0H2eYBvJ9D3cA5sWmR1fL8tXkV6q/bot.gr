@@ -12,6 +12,24 @@
             align-items: center;
             justify-content: center;
             font-family: Arial, Helvetica, sans-serif;
+            position: relative;
+        }
+
+        .user-info {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .user-info img {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
         }
 
         .panel {
@@ -79,6 +97,12 @@
 </head>
 <body>
 
+    <!-- User info top right -->
+    <div class="user-info" id="userInfo" style="display: none;">
+        <img id="userAvatar" src="" alt="Avatar">
+        <span id="userName"></span>
+    </div>
+
     <div class="panel">
         <h2>Submit Your Bot</h2>
         <form id="botForm">
@@ -96,15 +120,50 @@
 
             <div class="error" id="error"></div>
 
-            <button type="submit" class="submit-btn">Submit Request</button>
+            <button type="submit" class="submit-btn">Submit</button>
         </form>
     </div>
 
     <script>
         const form = document.getElementById('botForm');
         const errorDiv = document.getElementById('error');
-
         const WEBHOOK_URL = "https://discord.com/api/webhooks/1454213308264747280/Ff-b_KqrHxDq6lbDeeed_wMsWUPVka_9uFjksHzEHjG2viJVJYvhiF8rsGDHdBd896My";
+
+        // Discord OAuth2 info
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const clientId = "1454214634872770561";
+        const redirectUri = encodeURIComponent("https://bot-gr.vercel.app/");
+
+        async function getDiscordUser() {
+            if (!code) return;
+
+            try {
+                // Exchange code for access token
+                const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: `client_id=${clientId}&client_secret=YOUR_CLIENT_SECRET&grant_type=authorization_code&code=${code}&redirect_uri=${redirectUri}`
+                });
+                const tokenData = await tokenResponse.json();
+                const accessToken = tokenData.access_token;
+
+                // Get user info
+                const userResponse = await fetch("https://discord.com/api/users/@me", {
+                    headers: { "Authorization": `Bearer ${accessToken}` }
+                });
+                const user = await userResponse.json();
+
+                // Display top-right info
+                document.getElementById('userName').textContent = user.username;
+                document.getElementById('userAvatar').src = `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`;
+                document.getElementById('userInfo').style.display = 'flex';
+            } catch (err) {
+                console.error("Failed to fetch Discord user:", err);
+            }
+        }
+
+        getDiscordUser();
 
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
@@ -127,12 +186,9 @@
             try {
                 await fetch(WEBHOOK_URL, {
                     method: "POST",
-                    headers: {
-                        "Content-Type": "application/json"
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload)
                 });
-                // Redirect to Discord after submission
                 window.location.href = "https://dsc.gg/greekbots";
             } catch (err) {
                 errorDiv.textContent = "Failed to send submission. Try again later.";
