@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>bot.gr</title>
+    <title>bot.gr - Submit Bot</title>
     <style>
         body {
             margin: 0;
@@ -24,6 +24,7 @@
             gap: 10px;
             color: #fff;
             font-weight: bold;
+            cursor: pointer;
         }
 
         .user-info img {
@@ -63,13 +64,9 @@
             resize: vertical;
         }
 
-        textarea {
-            min-height: 60px;
-        }
+        textarea { min-height: 60px; }
 
-        input::placeholder, textarea::placeholder {
-            color: #999;
-        }
+        input::placeholder, textarea::placeholder { color: #999; }
 
         .submit-btn {
             width: 100%;
@@ -88,17 +85,13 @@
             transform: translateY(-2px);
         }
 
-        .error {
-            color: #ff6b6b;
-            margin-bottom: 12px;
-            font-size: 14px;
-        }
+        .error { color: #ff6b6b; margin-bottom: 12px; font-size: 14px; }
     </style>
 </head>
 <body>
 
     <!-- User info top right -->
-    <div class="user-info" id="userInfo" style="display: none;">
+    <div class="user-info" id="userInfo" style="display: none;" onclick="logout()">
         <img id="userAvatar" src="" alt="Avatar">
         <span id="userName"></span>
     </div>
@@ -120,50 +113,59 @@
 
             <div class="error" id="error"></div>
 
-            <button type="submit" class="submit-btn">Submit</button>
+            <button type="submit" class="submit-btn">Submit & Join Discord</button>
         </form>
     </div>
 
     <script>
+        const clientId = "1454214634872770561";
+        const redirectUri = encodeURIComponent(window.location.origin);
+        const scope = "identify";
         const form = document.getElementById('botForm');
         const errorDiv = document.getElementById('error');
         const WEBHOOK_URL = "https://discord.com/api/webhooks/1454213308264747280/Ff-b_KqrHxDq6lbDeeed_wMsWUPVka_9uFjksHzEHjG2viJVJYvhiF8rsGDHdBd896My";
 
-        // Discord OAuth2 info
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get('code');
-        const clientId = "1454214634872770561";
-        const redirectUri = encodeURIComponent("https://bot-gr.vercel.app/");
+        // --- OAuth2 implicit grant ---
+        function login() {
+            const url = `https://discord.com/api/oauth2/authorize?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=token&scope=${scope}`;
+            window.location.href = url;
+        }
 
-        async function getDiscordUser() {
-            if (!code) return;
+        function logout() {
+            localStorage.removeItem("discordToken");
+            window.location.reload();
+        }
+
+        async function getUser() {
+            let token = localStorage.getItem("discordToken");
+            if (!token) {
+                // Check if token is in URL hash
+                const hash = new URLSearchParams(window.location.hash.replace("#","?"));
+                token = hash.get("access_token");
+                if (token) {
+                    localStorage.setItem("discordToken", token);
+                    window.location.hash = ""; // clean URL
+                } else {
+                    return login(); // redirect to Discord login
+                }
+            }
 
             try {
-                // Exchange code for access token
-                const tokenResponse = await fetch("https://discord.com/api/oauth2/token", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: `client_id=${clientId}&client_secret=FQynx6HqlFHh91fOd54nUE1Hja6Df0Bv&grant_type=authorization_code&code=${code}&redirect_uri=${redirectUri}`
+                const res = await fetch("https://discord.com/api/users/@me", {
+                    headers: { "Authorization": `Bearer ${token}` }
                 });
-                const tokenData = await tokenResponse.json();
-                const accessToken = tokenData.access_token;
-
-                // Get user info
-                const userResponse = await fetch("https://discord.com/api/users/@me", {
-                    headers: { "Authorization": `Bearer ${accessToken}` }
-                });
-                const user = await userResponse.json();
-
-                // Display top-right info
+                const user = await res.json();
                 document.getElementById('userName').textContent = user.username;
                 document.getElementById('userAvatar').src = `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128`;
                 document.getElementById('userInfo').style.display = 'flex';
-            } catch (err) {
-                console.error("Failed to fetch Discord user:", err);
+            } catch(err) {
+                console.error(err);
+                localStorage.removeItem("discordToken");
+                login();
             }
         }
 
-        getDiscordUser();
+        getUser();
 
         form.addEventListener('submit', async function(e) {
             e.preventDefault();
