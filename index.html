@@ -7,23 +7,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
-<script type="module">
-import { WebAI } from "https://cdn.jsdelivr.net/npm/@axols/webai-js/dist/webai.min.js";
-let webai;
-async function initWebAI(){
-    webai = await WebAI.create({ modelId: "qwen3-0.6b" });
-    await webai.init({ mode: "auto" });
-}
-initWebAI();
-async function aiReply(prompt){
-    if(!webai) return "AI not initialized yet.";
-    const result = await webai.generate({
-        userInput: { messages: [{ role: "user", content: prompt }] },
-        modelConfig: { max_new_tokens: 512 }
-    });
-    return result.text;
-}
-</script>
+<script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.0.0/dist/transformers.min.js"></script>
 <style>
 *{box-sizing:border-box;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 body{margin:0;background:#4B5563;height:100vh;display:flex;color:#e5e7eb;flex-direction:row;overflow-y:auto}
@@ -90,21 +74,65 @@ textarea{flex:1;background:#4B5563;color:#e5e7eb;border:none;padding:10px;font-f
 <div class="console" id="console">Console ready.<button onclick="clearConsole()">Clear</button></div>
 </div>
 <script>
+let model;
+async function initAI(){
+  appendToConsole('Loading AI model...');
+  model = await window.transformers.load('Xenova/gpt-neo-125M');
+  appendToConsole('AI ready!');
+}
+initAI();
+async function aiReply(prompt){
+  if(!model) return "AI not ready yet.";
+  const output = await model.generate(prompt,{max_new_tokens:512});
+  return output[0].generated_text;
+}
+
 const messages=document.getElementById('messages')
 const input=document.getElementById('input')
 const canvas=document.getElementById('canvas')
 const editor=document.getElementById('editor')
 const lines=document.getElementById('lines')
 const consoleEl=document.getElementById('console')
+
+function ts(){
+    const d=document.createElement('div');d.className='timestamp';d.textContent=new Date().toLocaleTimeString();return d;
+}
+
 boot()
 function boot(){bot("Hello! I'm your AI chatbot. Just type anything and I'll respond.");updateLines()}
+
 input.addEventListener('keydown',e=>{if(e.key==='Enter')sendMessage()})
-async function sendMessage(){const t=input.value.trim();if(!t)return;user(t);input.value='';showTypingIndicator();setTimeout(async()=>{await respondAI(t);hideTypingIndicator()},200)}
-async function respondAI(msg){bot('AI is thinking...');const aiText=await aiReply(msg);if(aiText.split('\n').length>100){openCanvas();clearEditor();typeInEditor(aiText);bot('AI code inserted into canvas.')}else{bot(aiText)}}
+
+async function sendMessage(){
+  const t=input.value.trim();if(!t)return;
+  user(t);input.value='';
+  showTypingIndicator();
+  setTimeout(async()=>{
+      await respondAI(t);
+      hideTypingIndicator();
+  },200)
+}
+
+async function respondAI(msg){
+  bot('AI is thinking...');
+  const aiText=await aiReply(msg);
+  if(aiText.split('\n').length>100){
+    openCanvas();clearEditor();typeInEditor(aiText);bot('AI code inserted into canvas.');
+  }else{
+    bot(aiText);
+  }
+}
+
 function openCanvas(){canvas.classList.remove('hidden');canvas.classList.add('visible')}
 function closeCanvas(){canvas.classList.remove('visible');canvas.classList.add('hidden')}
 function user(t){add(t,'user')}
-function bot(text){const m=document.createElement('div');m.className='message bot';const span=document.createElement('span');span.className='bot-text';span.textContent=text;m.appendChild(span);m.appendChild(ts());messages.appendChild(m);messages.scrollTop=messages.scrollHeight}
+function bot(text){
+  const m=document.createElement('div');m.className='message bot';
+  const span=document.createElement('span');span.className='bot-text';span.textContent=text;
+  m.appendChild(span);m.appendChild(ts());
+  messages.appendChild(m);
+  messages.scrollTop=messages.scrollHeight;
+}
 function add(t,type){const m=document.createElement('div');m.className='message '+type;m.innerHTML=format(t);m.appendChild(ts());messages.appendChild(m);messages.scrollTop=messages.scrollHeight}
 function copyEditor(){navigator.clipboard.writeText(editor.value)}
 function clearEditor(){editor.value='';updateLines()}
@@ -118,6 +146,7 @@ let typingIndicator=null
 function showTypingIndicator(){typingIndicator=document.createElement('div');typingIndicator.className='typing-indicator message bot';typingIndicator.innerHTML='<div class="dot"></div><div class="dot"></div><div class="dot"></div>';messages.appendChild(typingIndicator);messages.scrollTop=messages.scrollHeight}
 function hideTypingIndicator(){if(typingIndicator){typingIndicator.remove();typingIndicator=null}}
 function typeInEditor(text){editor.value=text;updateLines();editor.scrollTop=editor.scrollHeight;appendToConsole('AI finished typing code.')}
+function format(t){return t.replace(/\n/g,'<br>')}
 </script>
 </body>
 </html>
