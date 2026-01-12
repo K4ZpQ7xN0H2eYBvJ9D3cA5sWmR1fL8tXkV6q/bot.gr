@@ -7,7 +7,6 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@xenova/transformers@2.0.0/dist/transformers.min.js"></script>
 <style>
 *{box-sizing:border-box;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 body{margin:0;background:#4B5563;height:100vh;display:flex;color:#e5e7eb;flex-direction:row;overflow-y:auto}
@@ -73,80 +72,40 @@ textarea{flex:1;background:#4B5563;color:#e5e7eb;border:none;padding:10px;font-f
 </div>
 <div class="console" id="console">Console ready.<button onclick="clearConsole()">Clear</button></div>
 </div>
-<script>
-let model;
-async function initAI(){
-  appendToConsole('Loading AI model...');
-  model = await window.transformers.load('Xenova/gpt-neo-125M');
-  appendToConsole('AI ready!');
-}
-initAI();
-async function aiReply(prompt){
-  if(!model) return "AI not ready yet.";
-  const output = await model.generate(prompt,{max_new_tokens:512});
-  return output[0].generated_text;
-}
-
-const messages=document.getElementById('messages')
-const input=document.getElementById('input')
-const canvas=document.getElementById('canvas')
-const editor=document.getElementById('editor')
-const lines=document.getElementById('lines')
-const consoleEl=document.getElementById('console')
-
-function ts(){
-    const d=document.createElement('div');d.className='timestamp';d.textContent=new Date().toLocaleTimeString();return d;
-}
-
-boot()
-function boot(){bot("Hello! I'm your AI chatbot. Just type anything and I'll respond.");updateLines()}
-
-input.addEventListener('keydown',e=>{if(e.key==='Enter')sendMessage()})
-
-async function sendMessage(){
-  const t=input.value.trim();if(!t)return;
-  user(t);input.value='';
-  showTypingIndicator();
-  setTimeout(async()=>{
-      await respondAI(t);
-      hideTypingIndicator();
-  },200)
-}
-
-async function respondAI(msg){
-  bot('AI is thinking...');
-  const aiText=await aiReply(msg);
-  if(aiText.split('\n').length>100){
-    openCanvas();clearEditor();typeInEditor(aiText);bot('AI code inserted into canvas.');
-  }else{
-    bot(aiText);
-  }
-}
-
-function openCanvas(){canvas.classList.remove('hidden');canvas.classList.add('visible')}
-function closeCanvas(){canvas.classList.remove('visible');canvas.classList.add('hidden')}
-function user(t){add(t,'user')}
-function bot(text){
-  const m=document.createElement('div');m.className='message bot';
-  const span=document.createElement('span');span.className='bot-text';span.textContent=text;
-  m.appendChild(span);m.appendChild(ts());
-  messages.appendChild(m);
-  messages.scrollTop=messages.scrollHeight;
-}
-function add(t,type){const m=document.createElement('div');m.className='message '+type;m.innerHTML=format(t);m.appendChild(ts());messages.appendChild(m);messages.scrollTop=messages.scrollHeight}
-function copyEditor(){navigator.clipboard.writeText(editor.value)}
-function clearEditor(){editor.value='';updateLines()}
-function runCode(){const code=editor.value;if(!code.trim()){appendToConsole('No code to run.',true);return}appendToConsole('--- Running code ---');const log=console.log;console.log=(...a)=>{appendToConsole(a.map(x=>typeof x==='object'?JSON.stringify(x):x).join(' '))};let res;try{res=eval(code);if(res!==undefined)appendToConsole(`Return value: ${typeof res==='object'?JSON.stringify(res):res}`);else appendToConsole('Executed successfully (no return value).')}catch(e){appendToConsole(`Error: ${e.message}`,true)}finally{console.log=log}}
+<script type="module">
+import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.0.0/dist/transformers.min.js';
+const messages=document.getElementById('messages');
+const input=document.getElementById('input');
+const canvas=document.getElementById('canvas');
+const editor=document.getElementById('editor');
+const lines=document.getElementById('lines');
+const consoleEl=document.getElementById('console');
+function ts(){const d=document.createElement('div');d.className='timestamp';d.textContent=new Date().toLocaleTimeString();return d}
 function appendToConsole(msg,err=false){const line=document.createElement('div');line.textContent=msg;if(err)line.style.color='#ef4444';consoleEl.insertBefore(line,consoleEl.querySelector('button'));consoleEl.scrollTop=consoleEl.scrollHeight}
 function clearConsole(){consoleEl.innerHTML='';const btn=document.createElement('button');btn.textContent='Clear';btn.onclick=clearConsole;consoleEl.appendChild(btn);appendToConsole('Console cleared.')}
 function updateLines(){const c=Math.max(editor.value.split('\n').length,1);lines.innerHTML=Array.from({length:c},(_,i)=>i+1).join('<br>')}
-editor.addEventListener('input',updateLines)
-function editFilename(el){const input=document.createElement('input');input.value=el.textContent;input.style.width='auto';input.style.background='transparent';input.style.border='1px solid #334155';input.style.color='#94a3b8';el.replaceWith(input);input.focus();input.addEventListener('blur',()=>{el.textContent=input.value||'example.js';input.replaceWith(el)});input.addEventListener('keydown',e=>{if(e.key==='Enter')input.blur()})}
-let typingIndicator=null
+let typingIndicator=null;
 function showTypingIndicator(){typingIndicator=document.createElement('div');typingIndicator.className='typing-indicator message bot';typingIndicator.innerHTML='<div class="dot"></div><div class="dot"></div><div class="dot"></div>';messages.appendChild(typingIndicator);messages.scrollTop=messages.scrollHeight}
 function hideTypingIndicator(){if(typingIndicator){typingIndicator.remove();typingIndicator=null}}
+function user(t){addMessage(t,'user')}
+function bot(t){addMessageStreaming(t,'bot')}
+function addMessageStreaming(text,type){const m=document.createElement('div');m.className='message '+type;const span=document.createElement('span');span.className='bot-text';m.appendChild(span);m.appendChild(ts());messages.appendChild(m);messages.scrollTop=messages.scrollHeight;let i=0;function typeChar(){if(i<text.length){span.textContent+=text[i++];messages.scrollTop=messages.scrollHeight;setTimeout(typeChar,8)}}typeChar()}
+function addMessage(text,type){const m=document.createElement('div');m.className='message '+type;const span=document.createElement('span');span.className='bot-text';span.textContent=text;m.appendChild(span);m.appendChild(ts());messages.appendChild(m);messages.scrollTop=messages.scrollHeight}
+let model;
+async function initAI(){appendToConsole('Loading AI model...');model=await pipeline('text-generation','Xenova/gpt-neo-125M');appendToConsole('AI ready!')}
+initAI();
+async function aiReply(prompt){if(!model)return "AI not ready yet.";const output=await model(prompt,{max_new_tokens:512});return output[0].generated_text}
+input.addEventListener('keydown',e=>{if(e.key==='Enter')sendMessage()})
+async function sendMessage(){const t=input.value.trim();if(!t)return;user(t);input.value='';showTypingIndicator();setTimeout(async()=>{const reply=await aiReply(t);hideTypingIndicator();if(reply.split('\n').length>100){openCanvas();clearEditor();typeInEditor(reply);bot('AI code inserted into canvas.')}else{bot(reply)}},200)}
+function openCanvas(){canvas.classList.remove('hidden');canvas.classList.add('visible')}
+function closeCanvas(){canvas.classList.remove('visible');canvas.classList.add('hidden')}
+function copyEditor(){navigator.clipboard.writeText(editor.value)}
+function clearEditor(){editor.value='';updateLines()}
+function runCode(){const code=editor.value;if(!code.trim()){appendToConsole('No code to run.',true);return}appendToConsole('--- Running code ---');const log=console.log;console.log=(...a)=>{appendToConsole(a.map(x=>typeof x==='object'?JSON.stringify(x):x).join(' '))};let res;try{res=eval(code);if(res!==undefined)appendToConsole(`Return value: ${typeof res==='object'?JSON.stringify(res):res}`);else appendToConsole('Executed successfully (no return value).')}catch(e){appendToConsole(`Error: ${e.message}`,true)}finally{console.log=log}}
+function editFilename(el){const input=document.createElement('input');input.value=el.textContent;input.style.width='auto';input.style.background='transparent';input.style.border='1px solid #334155';input.style.color='#94a3b8';el.replaceWith(input);input.focus();input.addEventListener('blur',()=>{el.textContent=input.value||'example.js';input.replaceWith(el)});input.addEventListener('keydown',e=>{if(e.key==='Enter')input.blur()})}
 function typeInEditor(text){editor.value=text;updateLines();editor.scrollTop=editor.scrollHeight;appendToConsole('AI finished typing code.')}
-function format(t){return t.replace(/\n/g,'<br>')}
+boot();
+function boot(){bot("Hello! I'm your AI chatbot. Just type anything and I'll respond.");updateLines();}
 </script>
 </body>
 </html>
